@@ -1,4 +1,4 @@
-### Based on
+### Multi objective genetic algorithm based on:
 "Improved Genetic Operators for the Multiobjective Generalized Assignment Problem"
 Authors:
 Robert F. Subtil
