@@ -48,7 +48,7 @@ def compute_cost_matrix():
 cost_matrix = compute_cost_matrix()
 av_penalties = penalties[int(np.mean(family_size))]
 weights = 1 + av_penalties / av_penalties.max()
-max_similarity_distance = 10 * weights.sum()
+max_similarity_distance = 20 * weights.sum()
 
 
 @njit
@@ -71,9 +71,9 @@ def family_distance(family1, family2):
 
     similarity_distance /= max_similarity_distance
 
-    mae = np.abs(family1 - family2).mean() / 90
+    # mae = np.abs(family1 - family2).mean() / 90
 
-    return similarity_distance + mae
+    return similarity_distance
 
 
 tree = BallTree(

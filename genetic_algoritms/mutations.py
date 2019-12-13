@@ -12,12 +12,12 @@ def gap_mutations(population, mutation_rate, random_family_rate,
                   random_choice_rate, step_mutation_rate,
                   occ_costs, acc_costs):
 
-    total_costs = occ_costs + acc_costs
+    # total_costs = occ_costs + acc_costs
     output = population
 
     for i in range(len(population)):
         individual = population[i]
-        costs = total_costs[i]
+        # costs = total_costs[i]
         p = np.random.random()
         if p < mutation_rate:
             p = np.random.random()
@@ -25,12 +25,12 @@ def gap_mutations(population, mutation_rate, random_family_rate,
                 family_idx = np.random.randint(len(individual))
                 day = individual[family_idx]
             else:
-                daily_occupancy = compute_daily_occupancy(individual)
-                day = proportional_random_choice(costs / daily_occupancy, 1)[0]
-                family_indexes = np.where(individual == day + 1)[0]
-                family_costs = cost_matrix[family_indexes, day]
-                random_family = proportional_random_choice(family_costs, 1)[0]
-                family_idx = family_indexes[random_family]
+                # daily_occupancy = compute_daily_occupancy(individual)
+                # day = proportional_random_choice(costs / daily_occupancy, 1)[0]
+                # family_indexes = np.where(individual == day + 1)[0]
+                family_costs = cost_matrix[:, day]
+                family_idx = proportional_random_choice(family_costs, 1)[0]
+                # family_idx = family_indexes[random_family]
 
             p = np.random.random()
             if p <= random_choice_rate:

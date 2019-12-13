@@ -96,6 +96,21 @@ def computes_occ_acc_costs(population):
 
 
 @njit
+def computes_family_occ_costs(individual):
+    costs = np.zeros(len(individual))
+    for i in range(len(costs)):
+        costs[i] = cost_matrix[i, individual[i] - 1]
+    return costs
+
+
+def computes_total_costs(population):
+    occ_costs, acc_costs = computes_occ_acc_costs(population)
+    costs_array = np.vstack([occ_costs.sum(axis=1), acc_costs.sum(axis=1)]).T
+    total_costs = costs_array.sum(axis=1)
+    return total_costs
+
+
+@njit
 def compute_daily_occupancy(individual):
     daily_occupancy = np.zeros(N_DAYS + 1, dtype=np.int64)
     for i, (pred, n) in enumerate(zip(individual, family_size)):

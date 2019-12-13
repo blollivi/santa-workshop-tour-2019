@@ -2,8 +2,7 @@ from matplotlib import pyplot as plt
 import numpy as np
 
 from initializations import initialise_population
-from genetic_algoritms.selections import tournament
-
+from genetic_algoritms.selections import tournament, uniform_selection
 from genetic_algoritms.crossovers import gap_crossovers
 from genetic_algoritms.mutations import gap_mutations
 from metrics import computes_occ_acc_costs
@@ -20,7 +19,7 @@ STEP_MUTATION_RATE = 0.5
 N_OPPONENTS = 2
 
 # population = np.load('data/population_nsga.npy', allow_pickle=True)
- 
+population = initialise_population(N)
 offsprings = []
 
 for n in range(N_GENERATIONS):

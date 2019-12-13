@@ -21,7 +21,15 @@ def stochastic_selection(population, scores, selection_rate):
 
 
 @njit
-def fast_tournament(N, n_opponents, fit):
+def tournament(N, n_opponents, fit):
+    '''
+    Binary tournament selection
+    :param N: number of solutions to be selected
+    :param fit: fitness vectors.
+                1st column: front_no,
+                2nd column: crowding distance
+    :return: index of selected solutions
+    '''
     n = len(fit)
     winners = []
     for i in range(N):
@@ -35,15 +43,3 @@ def fast_tournament(N, n_opponents, fit):
 
     return winners
 
-
-def tournament(population, n_opponents, fit):
-    '''
-    Binary tournament selection
-    :param N: number of solutions to be selected
-    :param fit: fitness vectors.
-                1st column: front_no,
-                2nd column: crowding distance
-    :return: index of selected solutions
-    '''
-    winners = fast_tournament(len(population), n_opponents, fit)
-    return population[winners]
