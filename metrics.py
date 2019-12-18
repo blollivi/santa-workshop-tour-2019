@@ -3,7 +3,8 @@ import numpy as np
 
 from load_data_and_constants import (N_DAYS, MAX_OCCUPANCY,
                                      MIN_OCCUPANCY, cost_matrix,
-                                     family_size, penalties)
+                                     family_size, penalties,
+                                     weights, max_similarity_distance)
 
 
 @njit(fastmath=True)
@@ -102,12 +103,10 @@ def computes_family_occ_costs(individual):
         costs[i] = cost_matrix[i, individual[i] - 1]
     return costs
 
-
+@njit
 def computes_total_costs(population):
     occ_costs, acc_costs = computes_occ_acc_costs(population)
-    costs_array = np.vstack([occ_costs.sum(axis=1), acc_costs.sum(axis=1)]).T
-    total_costs = costs_array.sum(axis=1)
-    return total_costs
+    return occ_costs.sum(axis=1) + acc_costs.sum(axis=1)
 
 
 @njit
@@ -147,3 +146,28 @@ def violation_score_variation(family_idx, current_choice, new_choice,
     )
 
     return current_violation_score.sum(), next_violation_score.sum()
+
+
+@njit
+def family_distance(family1, family2):
+    """Distance between two family defined as the cost
+    for Santa Claus to replace family1'choices by
+    family2's choices."""
+
+    similarity_distance = 0
+    for idx1 in range(len(family1)):
+        choice = family1[idx1]
+        idx_choice_family2 = -1
+        for idx2 in range(len(family2)):
+            if family2[idx2] == choice:
+                idx_choice_family2 = idx2
+        if idx_choice_family2 >= 0:
+            similarity_distance += np.exp(weights[idx1]) * np.abs(idx_choice_family2 - idx1)
+        else:
+            similarity_distance += np.exp(weights[idx1]) * 10
+
+    similarity_distance /= max_similarity_distance
+
+    # mae = np.abs(family1 - family2).mean() / 90
+
+    return similarity_distance

@@ -1,5 +1,3 @@
-from sklearn.neighbors import BallTree
-from numba import njit
 import pandas as pd
 import numpy as np
 
@@ -47,36 +45,5 @@ def compute_cost_matrix():
 
 cost_matrix = compute_cost_matrix()
 av_penalties = penalties[int(np.mean(family_size))]
-weights = 1 + av_penalties / av_penalties.max()
+weights = 2 - av_penalties / av_penalties.max()
 max_similarity_distance = 20 * weights.sum()
-
-
-@njit
-def family_distance(family1, family2):
-    """Distance between two family defined as the cost
-    for Santa Claus to replace family1'choices by
-    family2's choices."""
-
-    similarity_distance = 0
-    for idx1 in range(len(family1)):
-        choice = family1[idx1]
-        idx_choice_family2 = -1
-        for idx2 in range(len(family2)):
-            if family2[idx2] == choice:
-                idx_choice_family2 = idx2
-        if idx_choice_family2 >= 0:
-            similarity_distance += weights[idx1] * np.abs(idx_choice_family2 - idx1)
-        else:
-            similarity_distance += weights[idx1] * 10
-
-    similarity_distance /= max_similarity_distance
-
-    # mae = np.abs(family1 - family2).mean() / 90
-
-    return similarity_distance
-
-
-tree = BallTree(
-    data_array,
-    metric=family_distance
-)

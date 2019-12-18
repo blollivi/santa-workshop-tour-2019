@@ -1,27 +1,21 @@
 import numpy as np
 
-from load_data_and_constants import tree, data_array
-from metrics import computes_total_costs, computes_occ_acc_costs
 from tabu_search.neighborhood import get_neighbor
+from metrics import computes_total_costs
 
-initial_solution = np.load('data/best_solution_ts.npy', allow_pickle=True)
-
-
-N_ITER = 5000
+# From:
+# A Tabu search heuristic for the generalized assignment problem
+# Juan A. Diaz, Elena Fernandez
 
 
 class TabuSearch():
-    def __init__(self, initial_solution, neighborhood_size,
-                 tabu_duration, n_iter_without_improvement):
+    def __init__(self, initial_solution):
         self.n_families = initial_solution.shape[0]
         self.n_days = initial_solution.max() + 1
         self.best_score = computes_total_costs([initial_solution])[0]
         self.best_solution = initial_solution.copy()
         self.solution = initial_solution.copy()
-        self.neighborhood_size = neighborhood_size
         self.iter = 0
-        self.tabu_duration = tabu_duration
-        self.n_iter_without_improvement = n_iter_without_improvement
         self.initialize_tabu_matrix()
         self.initialize_frequency_matrix()
         self.unfix_all_assignments()
@@ -37,7 +31,7 @@ class TabuSearch():
                 self.tabu_matrix,
                 self.iter
             )
-            
+
             self.solution = neighbor.copy()
             self.update_tabu_matrix(assignment)
             self.update_frequency_matrix(neighbor)
@@ -49,13 +43,13 @@ class TabuSearch():
                 self.best_solution = neighbor.copy()
                 self.best_score = neighbor_score
                 break
-    
+
     def intensification_phase(self):
         print('Intensification phase')
         self.solution = self.best_solution.copy()
         self.fix_most_frequent_assignments(self.solution)
         self.short_term_memory_phase()
-    
+
     def diversification_phase(self):
         print('Diversification phase')
         self.unfix_all_assignments()
@@ -71,7 +65,7 @@ class TabuSearch():
             if self.frequency_matrix[family_idx, day - 1] > 0.85*self.iter:
                 fixed_assignments.append(family_idx)
         self.fixed_assignments = fixed_assignments
-    
+
     def unfix_all_assignments(self):
         self.fixed_assignments = []
 
@@ -89,15 +83,16 @@ class TabuSearch():
     def initialize_frequency_matrix(self):
         self.frequency_matrix = np.ones((self.n_families, self.n_days))
 
-    def run(self, iter_max):
+    def run(self, iter_max, neighborhood_size,
+            tabu_duration, n_iter_without_improvement):
+        self.tabu_duration = tabu_duration
+        self.n_iter_without_improvement = n_iter_without_improvement
+        self.neighborhood_size = neighborhood_size
         print(f'Initial score: {self.best_score}')
         self.short_term_memory_phase()
         for i in range(iter_max):
             self.intensification_phase()
             self.diversification_phase()
-    
+
     def save_solution(self):
         np.save('data/best_solution_ts.npy', self.best_solution)
-
-
-

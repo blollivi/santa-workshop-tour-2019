@@ -1,12 +1,24 @@
 from numba import njit, jit
+from tqdm import tqdm
 import numpy as np
 
 from metrics import computes_family_occ_costs, computes_total_costs
-from load_data_and_constants import tree, data_array, N_DAYS, cost_matrix
+from load_data_and_constants import N_DAYS, cost_matrix
 
 
 @njit
-def get_shifts(solution: np.array, family_idx: int) -> tuple([list, list]):
+def is_feasible(assignment_ref: tuple([int, int]),
+                tabu_matrix: np.array,
+                iter: int) -> bool:
+    """A feasible assignment is a shift or a swap that is not tabu active.
+    """
+    return tabu_matrix[assignment_ref[0], assignment_ref[1] - 1] < iter
+
+
+@njit
+def get_shifts(solution: np.array, family_idx: int,
+               tabu_matrix: np.array,
+               iter: int) -> tuple([list, list]):
     """
     Finds new assignments of family_idx resulting from switching its choice
     with all other days.
@@ -18,7 +30,8 @@ def get_shifts(solution: np.array, family_idx: int) -> tuple([list, list]):
     shifts = []
     assignments_ref = []
     for new_choice in range(1, N_DAYS + 1):
-        if new_choice != current_choice:
+        if (new_choice != current_choice) & \
+                is_feasible((family_idx, new_choice), tabu_matrix, iter):
             shift = solution.copy()
             shift[family_idx] = new_choice
             shifts.append(shift)
@@ -27,52 +40,43 @@ def get_shifts(solution: np.array, family_idx: int) -> tuple([list, list]):
     return shifts, assignments_ref
 
 
-@jit
-def get_swaps(solution: np.array,
-              family_idx: int, k: int) -> tuple([list, list]):
+@njit
+def get_swaps(solution: np.array, family_idx: int,
+              tabu_matrix: np.array,
+              iter: int) -> tuple([list, list]):
     """
     Finds all new assignments of family_idx resulting from swapping its choices
-    with the choices of the k "closest" families. The notion of distance
-    between families is defined in the module metrics.
+    with the choices of all other families.
 
     :param solution: 1D solution array
     :param family_idx: index mapping a family choice in solution
-    :param k: number of closest families to consider.
     """
-    dist, nearest_families_idx = tree.query(
-        data_array[family_idx:family_idx+1], k=k
-    )
     swaps = []
     assignments_ref = []
     current_choice = solution[family_idx]
-    for swap_idx in nearest_families_idx[0][1:]:
-        swap = solution.copy()
-        new_choice = swap[swap_idx]
-        swap[family_idx] = new_choice
-        swap[swap_idx] = current_choice
-        swaps.append(swap)
-        # Keeps in memory the assignment with the highest cost
-        if cost_matrix[family_idx, new_choice - 1] > \
-                cost_matrix[swap_idx, current_choice - 1]:
-            assignments_ref.append((family_idx, new_choice))
-        else:
-            assignments_ref.append((swap_idx, current_choice))
+    for swap_idx in range(len(solution)):
+        if swap_idx != family_idx: 
+            swap = solution.copy()
+            new_choice = swap[swap_idx]
+            swap[family_idx] = new_choice
+            swap[swap_idx] = current_choice
+
+            # Keeps in memory only the assignment with the highest cost
+            if cost_matrix[family_idx, new_choice - 1] > \
+                    cost_matrix[swap_idx, current_choice - 1]:
+                if is_feasible((family_idx, new_choice), tabu_matrix, iter):
+                    swaps.append(swap)
+                    assignments_ref.append((family_idx, new_choice))
+            else:
+                if is_feasible((swap_idx, current_choice), tabu_matrix, iter):
+                    swaps.append(swap)
+                    assignments_ref.append((swap_idx, current_choice))
 
     return swaps, assignments_ref
 
 
 @njit
-def filter_feasible_assignment(assignments_ref, tabu_matrix, iter):
-    """A feasible assignment is a shift or a swap that is not tabu active.
-    """
-    feasible_assignment_idx = []
-    for idx, ref in enumerate(assignments_ref):
-        if tabu_matrix[ref[0], ref[1] - 1] < iter:
-            feasible_assignment_idx.append(idx)
-    return feasible_assignment_idx
-
-
-def find_best_new_assignment(solution: np.array, family_idx: int, k: int,
+def find_best_new_assignment(solution: np.array, family_idx: int,
                              tabu_matrix, iter):
     """
     Lists all new feasible assignments for a given family_idx. Evaluate them
@@ -80,17 +84,17 @@ def find_best_new_assignment(solution: np.array, family_idx: int, k: int,
 
     :param solution: 1D solution array
     :param family_idx: index mapping a family choice in solution
-    :param k: see get_swaps function.
     """
-    shifts, shift_assignments_ref = get_shifts(solution, family_idx)
-    swaps, swap_assignments_ref = get_swaps(solution, family_idx, k)
+    shifts, shift_assignments_ref = get_shifts(
+        solution, family_idx,
+        tabu_matrix, iter
+    )
+    swaps, swap_assignments_ref = get_swaps(
+        solution, family_idx,
+        tabu_matrix, iter
+    )
     assignments = shifts + swaps
     assignments_ref = shift_assignments_ref + swap_assignments_ref
-    feasible_assignment_idx = filter_feasible_assignment(
-        assignments_ref, tabu_matrix, iter
-    )
-    assignments = [assignments[i] for i in feasible_assignment_idx]
-    assignments_ref = [assignments_ref[i] for i in feasible_assignment_idx]
 
     assignment_scores = computes_total_costs(assignments)
     best_assignment_arg = np.argmin(assignment_scores)
@@ -102,7 +106,7 @@ def find_best_new_assignment(solution: np.array, family_idx: int, k: int,
 
 
 def get_neighbor(solution: np.array, fixed_assignments: list,
-                 best_score: float, k: int,
+                 best_score: float,
                  tabu_matrix, iter) -> np.array:
     """Neighbor generation mechanism
 
@@ -110,7 +114,6 @@ def get_neighbor(solution: np.array, fixed_assignments: list,
     :param fixed_assignments: list of family indices that can't be mutated
                               during the neighbor research.
     :param best_score: best score so far.
-    :param k: size of the neighborhood for the swap function.
     :return: a new solution array
     """
 
@@ -122,9 +125,10 @@ def get_neighbor(solution: np.array, fixed_assignments: list,
     best_neighbor_score = np.inf
     best_neighbor = None
     best_neighbor_assignment = None
-    for family_idx in sort_idx:
+    n = min(500, len(sort_idx))
+    for family_idx in sort_idx[:n]:
         best_assignment, best_assignment_score, best_assignments_ref = \
-            find_best_new_assignment(solution, family_idx, k,
+            find_best_new_assignment(solution, family_idx,
                                      tabu_matrix, iter)
 
         if best_assignment_score < best_neighbor_score:
